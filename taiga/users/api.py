@@ -407,7 +407,7 @@ class UsersViewSet(ModelCrudViewSet):
     def assigned(self, request, *args, **kwargs):
         for_user = get_object_or_404(models.User, **kwargs)
         from_user = request.user
-        self.check_permissions(request, 'watched', for_user)
+        #self.check_permissions(request, 'watched', for_user)
         filters = {
             "type": request.GET.get("type", None),
             "q": request.GET.get("q", None),
