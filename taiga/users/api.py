@@ -413,7 +413,7 @@ class UsersViewSet(ModelCrudViewSet):
             "q": request.GET.get("q", None),
         }
 
-        self.object_list = services.get_watched_list(for_user, from_user, **filters)
+        self.object_list = services.get_assigned_list(for_user, from_user, **filters)
         page = self.paginate_queryset(self.object_list)
         elements = page.object_list if page is not None else self.object_list
 
