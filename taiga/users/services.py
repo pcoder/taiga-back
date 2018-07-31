@@ -588,6 +588,100 @@ def get_voted_list(for_user, from_user, type=None, q=None):
         for row in cursor.fetchall()
     ]
 
+def get_assigned_list(for_user, from_user, type=None, q=None):
+    filters_sql = ""
+
+    if type:
+        filters_sql += " AND type = %(type)s "
+
+    if q:
+        filters_sql += """ AND (
+            to_tsvector('simple', coalesce(subject,'') || ' ' ||coalesce(entities.name,'') || ' ' ||coalesce(to_char(ref, '999'),'')) @@ to_tsquery('simple', %(q)s)
+        )
+        """
+
+    sql = """
+    -- BEGIN Basic info: we need to mix info from different tables and denormalize it
+    SELECT entities.*,
+           projects_project.name as project_name, projects_project.description as description, projects_project.slug as project_slug, projects_project.is_private as project_is_private,
+           projects_project.blocked_code as project_blocked_code, projects_project.tags_colors, projects_project.logo,
+           users_user.id as assigned_to_id,
+           row_to_json(users_user) as assigned_to_extra_info
+        FROM (
+            {epics_sql}
+            UNION
+            {userstories_sql}
+            UNION
+            {tasks_sql}
+            UNION
+            {issues_sql}
+        ) as entities
+    -- END Basic info
+
+    -- BEGIN Project info
+    LEFT JOIN projects_project
+        ON (entities.project = projects_project.id)
+    -- END Project info
+
+    -- BEGIN Assigned to user info
+    LEFT JOIN users_user
+        ON (assigned_to = users_user.id)
+    -- END Assigned to user info
+
+    -- BEGIN Permissions checking
+    LEFT JOIN projects_membership
+        -- Here we check the memberbships from the user requesting the info
+        ON (projects_membership.user_id = {from_user_id} AND projects_membership.project_id = entities.project)
+
+    LEFT JOIN users_role
+        ON (entities.project = users_role.project_id AND users_role.id =  projects_membership.role_id)
+
+    WHERE
+        -- public project
+        (
+            projects_project.is_private = false
+            OR(
+                -- private project where the view_ permission is included in the user role for that project or in the anon permissions
+                projects_project.is_private = true
+                AND(
+                    (entities.type = 'issue' AND 'view_issues' = ANY (array_cat(users_role.permissions, projects_project.anon_permissions)))
+                    OR (entities.type = 'task' AND 'view_tasks' = ANY (array_cat(users_role.permissions, projects_project.anon_permissions)))
+                    OR (entities.type = 'userstory' AND 'view_us' = ANY (array_cat(users_role.permissions, projects_project.anon_permissions)))
+                    OR (entities.type = 'epic' AND 'view_epic' = ANY (array_cat(users_role.permissions, projects_project.anon_permissions)))
+                )
+        ))
+    -- END Permissions checking
+        {filters_sql}
+
+    ORDER BY entities.created_date DESC;
+    """
+
+    from_user_id = -1
+    if not from_user.is_anonymous():
+        from_user_id = from_user.id
+
+    sql = sql.format(
+        for_user_id=for_user.id,
+        from_user_id=from_user_id,
+        filters_sql=filters_sql,
+        userstories_sql=_build_sql_for_type(for_user, "userstory", "userstories_userstory", "votes_vote", slug_column="null"),
+        tasks_sql=_build_sql_for_type(for_user, "task", "tasks_task", "votes_vote", slug_column="null"),
+        issues_sql=_build_sql_for_type(for_user, "issue", "issues_issue", "votes_vote", slug_column="null"),
+        epics_sql=_build_sql_for_type(for_user, "epic", "epics_epic", "votes_vote", slug_column="null"))
+
+    cursor = connection.cursor()
+    params = {
+        "type": type,
+        "q": to_tsquery(q) if q is not None else ""
+    }
+    cursor.execute(sql, params)
+
+    desc = cursor.description
+    return [
+        dict(zip([col[0] for col in desc], row))
+        for row in cursor.fetchall()
+    ]
+
 
 def has_available_slot_for_new_project(owner, is_private, total_memberships):
     if is_private:
