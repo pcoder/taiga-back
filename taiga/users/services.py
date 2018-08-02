@@ -280,6 +280,31 @@ def _build_liked_sql_for_projects(for_user):
     return sql
 
 
+
+def _build_assigned_sql_for_type(for_user, type, table_name, action_table,
+                         ref_column="ref",
+                        project_column="project_id", assigned_to_column="assigned_to_id",
+                        slug_column="slug", subject_column="subject"):
+    sql = """
+    SELECT {table_name}.id AS id, {ref_column} AS ref, '{type}' AS type,
+        tags, {table_name}.id AS object_id, {table_name}.{project_column} AS
+        project,
+        {slug_column} AS slug, null AS name, {subject_column} AS subject,
+        {assigned_to_column}  AS assigned_to, projects_{type}status.name as
+        status, projects_{type}status.color as status_color, created_date,
+        -1 as total_voters, -1 as total_watchers
+        FROM {table_name} INNER JOIN projects_{type}status
+              ON (projects_{type}status.id = {table_name}.status_id)
+        WHERE {table_name}.assigned_to_id = {for_user_id}
+    """
+    sql = sql.format(for_user_id=for_user.id, type=type, table_name=table_name,
+                     action_table=action_table, ref_column=ref_column,
+                     project_column=project_column, assigned_to_column=assigned_to_column,
+                     slug_column=slug_column, subject_column=subject_column)
+
+    return sql
+
+
 def _build_sql_for_type(for_user, type, table_name, action_table, ref_column="ref",
                         project_column="project_id", assigned_to_column="assigned_to_id",
                         slug_column="slug", subject_column="subject"):
@@ -664,18 +689,18 @@ def get_assigned_list(for_user, from_user, type=None, q=None):
         for_user_id=for_user.id,
         from_user_id=from_user_id,
         filters_sql=filters_sql,
-        userstories_sql=_build_sql_for_type(
+        userstories_sql=_build_assigned_sql_for_type(
             for_user, "userstory", "userstories_userstory", "votes_vote",
-            slug_column="null") + ' AND userstories_userstory.assigned_to_id = ' + str(for_user.id),
-        tasks_sql=_build_sql_for_type(
-            for_user, "task", "tasks_task", "votes_vote", slug_column="null") +
-            ' AND tasks_task.assigned_to_id = ' + str(for_user.id),
-        issues_sql=_build_sql_for_type(
-            for_user, "issue", "issues_issue", "votes_vote",
-            slug_column="null") + ' AND issues_issue.assigned_to_id = ' + str(for_user.id),
-        epics_sql=_build_sql_for_type(for_user, "epic", "epics_epic",
-                                      "votes_vote", slug_column="null") +
-                  ' AND epics_epic.assigned_to_id = ' + str(for_user.id)
+            slug_column="null"),
+        tasks_sql=_build_assigned_sql_for_type(
+            for_user, "task", "tasks_task", "votes_vote", slug_column="null"
+        ),
+        issues_sql=_build_assigned_sql_for_type(
+            for_user, "issue", "issues_issue", "votes_vote", slug_column="null"
+        ),
+        epics_sql=_build_assigned_sql_for_type(
+            for_user, "epic", "epics_epic", "votes_vote", slug_column="null"
+        )
     )
 
     cursor = connection.cursor()
