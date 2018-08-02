@@ -589,7 +589,7 @@ def get_voted_list(for_user, from_user, type=None, q=None):
     ]
 
 def get_assigned_list(for_user, from_user, type=None, q=None):
-    filters_sql = ""
+    filters_sql = " AND assigned_to=" + str(for_user.id)
 
     if type:
         filters_sql += " AND type = %(type)s "
@@ -664,10 +664,19 @@ def get_assigned_list(for_user, from_user, type=None, q=None):
         for_user_id=for_user.id,
         from_user_id=from_user_id,
         filters_sql=filters_sql,
-        userstories_sql=_build_sql_for_type(for_user, "userstory", "userstories_userstory", "votes_vote", slug_column="null"),
-        tasks_sql=_build_sql_for_type(for_user, "task", "tasks_task", "votes_vote", slug_column="null"),
-        issues_sql=_build_sql_for_type(for_user, "issue", "issues_issue", "votes_vote", slug_column="null"),
-        epics_sql=_build_sql_for_type(for_user, "epic", "epics_epic", "votes_vote", slug_column="null"))
+        userstories_sql=_build_sql_for_type(
+            for_user, "userstory", "userstories_userstory", "votes_vote",
+            slug_column="null") + ' AND userstories_userstory.assigned_to_id = ' + str(for_user.id),
+        tasks_sql=_build_sql_for_type(
+            for_user, "task", "tasks_task", "votes_vote", slug_column="null") +
+            ' AND tasks_task.assigned_to_id = ' + str(for_user.id),
+        issues_sql=_build_sql_for_type(
+            for_user, "issue", "issues_issue", "votes_vote",
+            slug_column="null") + ' AND issues_issue.assigned_to_id = ' + str(for_user.id),
+        epics_sql=_build_sql_for_type(for_user, "epic", "epics_epic",
+                                      "votes_vote", slug_column="null") +
+                  ' AND epics_epic.assigned_to_id = ' + str(for_user.id)
+    )
 
     cursor = connection.cursor()
     params = {
