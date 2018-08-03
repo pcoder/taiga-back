@@ -286,16 +286,30 @@ def _build_assigned_sql_for_type(for_user, type, table_name, action_table,
                         project_column="project_id", assigned_to_column="assigned_to_id",
                         slug_column="slug", subject_column="subject"):
     sql = """
-    SELECT {table_name}.id AS id, {ref_column} AS ref, '{type}' AS type,
-        tags, {table_name}.id AS object_id, {table_name}.{project_column} AS
-        project,
-        {slug_column} AS slug, null AS name, {subject_column} AS subject,
-        {assigned_to_column}  AS assigned_to, projects_{type}status.name as
-        status, projects_{type}status.color as status_color, created_date,
-        -1 as total_voters, -1 as total_watchers
-        FROM {table_name} INNER JOIN projects_{type}status
-              ON (projects_{type}status.id = {table_name}.status_id)
-        WHERE {table_name}.assigned_to_id = {for_user_id}
+    SELECT {table_name}.id AS id,ref AS ref, '{type}' AS type,
+            tags, {table_name}.id as object_id, {table_name}.project_id AS project,
+            null AS slug, null AS name, subject AS subject,
+            {table_name}.modified_date as created_date,
+            coalesce(watchers, 0) AS total_watchers,
+            null::integer AS total_fans, coalesce(voters, 0) AS total_voters,
+            {assigned_to_column}  AS assigned_to,
+            projects_{type}status.name as status,
+            projects_{type}status.color as status_color
+    from {table_name}
+        INNER JOIN django_content_type ON (django_content_type.model = '{type}')
+        LEFT JOIN (SELECT object_id, content_type_id, count(*) voters
+                       FROM votes_vote GROUP BY object_id, content_type_id)
+                  type_voters
+                ON ({table_name}.id = type_voters.object_id AND
+                    django_content_type.id = type_voters.content_type_id)
+        LEFT JOIN (SELECT object_id, content_type_id, count(*) watchers FROM
+                    notifications_watched GROUP BY object_id, content_type_id)
+                  type_watchers
+                ON ({table_name}.id = type_watchers.object_id AND
+                    django_content_type.id = type_watchers.content_type_id)
+        INNER JOIN projects_{type}status
+                ON (projects_{type}status.id = {table_name}.status_id)
+    WHERE assigned_to_id = {for_user_id}
     """
     sql = sql.format(for_user_id=for_user.id, type=type, table_name=table_name,
                      action_table=action_table, ref_column=ref_column,
@@ -614,7 +628,7 @@ def get_voted_list(for_user, from_user, type=None, q=None):
     ]
 
 def get_assigned_list(for_user, from_user, type=None, q=None):
-    filters_sql = " AND assigned_to=" + str(for_user.id)
+    filters_sql = ""
 
     if type:
         filters_sql += " AND type = %(type)s "
