@@ -115,6 +115,7 @@ router.register(r"issues/custom-attributes-values", IssueCustomAttributesValuesV
 from taiga.searches.api import SearchViewSet
 
 router.register(r"search", SearchViewSet, base_name="search")
+router.register(r"global-search", SearchViewSet, base_name="global-search")
 
 
 # Resolver
