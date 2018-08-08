@@ -21,7 +21,7 @@ from django.apps import apps
 from taiga.base.api import viewsets
 
 from taiga.base import response
-from taiga.base.api.utils import get_object_or_404
+from taiga.base.api.utils import get_object_or_404, get_list_or_404
 from taiga.permissions.services import user_has_perm
 
 from . import services
@@ -33,45 +33,60 @@ from concurrent import futures
 class SearchViewSet(viewsets.ViewSet):
     def list(self, request, **kwargs):
         text = request.QUERY_PARAMS.get('text', "")
+        print("Searching for {}".format(text))
         project_id = request.QUERY_PARAMS.get('project', None)
+        #project_id =2
+        if project_id:
+            projects_list = [self._get_project(project_id)]
+        else:
+            projects_list = self._get_all_projects()
 
-        project = self._get_project(project_id)
+        print(projects_list)
 
-        result = {}
-        with futures.ThreadPoolExecutor(max_workers=4) as executor:
-            futures_list = []
-            if user_has_perm(request.user, "view_epics", project):
-                epics_future = executor.submit(self._search_epics, project, text)
-                epics_future.result_key = "epics"
-                futures_list.append(epics_future)
-            if user_has_perm(request.user, "view_us", project):
-                uss_future = executor.submit(self._search_user_stories, project, text)
-                uss_future.result_key = "userstories"
-                futures_list.append(uss_future)
-            if user_has_perm(request.user, "view_tasks", project):
-                tasks_future = executor.submit(self._search_tasks, project, text)
-                tasks_future.result_key = "tasks"
-                futures_list.append(tasks_future)
-            if user_has_perm(request.user, "view_issues", project):
-                issues_future = executor.submit(self._search_issues, project, text)
-                issues_future.result_key = "issues"
-                futures_list.append(issues_future)
-            if user_has_perm(request.user, "view_wiki_pages", project):
-                wiki_pages_future = executor.submit(self._search_wiki_pages, project, text)
-                wiki_pages_future.result_key = "wikipages"
-                futures_list.append(wiki_pages_future)
+        full_result = {}
 
-            for future in futures.as_completed(futures_list):
-                data = []
-                try:
-                    data = future.result()
-                except Exception as exc:
-                    print('%s generated an exception: %s' % (future.result_key, exc))
-                finally:
-                    result[future.result_key] = data
+        for project in projects_list:
+            result = {}
+            with futures.ThreadPoolExecutor(max_workers=4) as executor:
+                futures_list = []
+                if user_has_perm(request.user, "view_epics", project):
+                    epics_future = executor.submit(self._search_epics, project, text)
+                    epics_future.result_key = "epics"
+                    futures_list.append(epics_future)
+                if user_has_perm(request.user, "view_us", project):
+                    uss_future = executor.submit(self._search_user_stories, project, text)
+                    uss_future.result_key = "userstories"
+                    futures_list.append(uss_future)
+                if user_has_perm(request.user, "view_tasks", project):
+                    tasks_future = executor.submit(self._search_tasks, project, text)
+                    tasks_future.result_key = "tasks"
+                    futures_list.append(tasks_future)
+                if user_has_perm(request.user, "view_issues", project):
+                    issues_future = executor.submit(self._search_issues, project, text)
+                    issues_future.result_key = "issues"
+                    futures_list.append(issues_future)
+                if user_has_perm(request.user, "view_wiki_pages", project):
+                    wiki_pages_future = executor.submit(self._search_wiki_pages, project, text)
+                    wiki_pages_future.result_key = "wikipages"
+                    futures_list.append(wiki_pages_future)
 
-        result["count"] = sum(map(lambda x: len(x), result.values()))
-        return response.Ok(result)
+                for future in futures.as_completed(futures_list):
+                    data = []
+                    try:
+                        data = future.result()
+                    except Exception as exc:
+                        print('%s generated an exception: %s' % (future.result_key, exc))
+                    finally:
+                        result[future.result_key] = data
+            result["count"] = sum(map(lambda x: len(x), result.values()))
+            print(project)
+            full_result[project.id] = result
+        print(full_result)
+        return response.Ok(full_result)
+
+    def _get_all_projects(self):
+        project_model = apps.get_model("projects", "Project")
+        return get_list_or_404(project_model)
 
     def _get_project(self, project_id):
         project_model = apps.get_model("projects", "Project")
