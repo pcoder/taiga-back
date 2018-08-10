@@ -49,9 +49,6 @@ class UserStorySearchResultsSerializer(serializers.LightSerializer):
 
         return obj.total_points_attr
 
-class GlobalUserStorySearchResultsSerializer(UserStorySearchResultsSerializer):
-    project_slug = Field(attr="slug")
-
 
 class TaskSearchResultsSerializer(serializers.LightSerializer):
     id = Field()
@@ -72,3 +69,24 @@ class IssueSearchResultsSerializer(serializers.LightSerializer):
 class WikiPageSearchResultsSerializer(serializers.LightSerializer):
     id = Field()
     slug = Field()
+
+
+class GlobalEpicSearchResultsSerializer(EpicSearchResultsSerializer):
+    project_slug = Field(attr="project.slug")
+
+
+class GlobalUserStorySearchResultsSerializer(UserStorySearchResultsSerializer):
+    project_slug = Field(attr="project.slug")
+
+
+class GlobalTaskSearchResultsSerializer(TaskSearchResultsSerializer):
+    project_slug = Field(attr="project.slug")
+
+
+class GlobalIssueSearchResultsSerializer(IssueSearchResultsSerializer):
+    project_slug = Field(attr="project.slug")
+
+
+class GlobalWikiSearchResultsSerializer(WikiPageSearchResultsSerializer):
+    project_slug = Field(attr="project.slug")
+

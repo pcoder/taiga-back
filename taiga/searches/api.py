@@ -35,18 +35,11 @@ class SearchViewSet(viewsets.ViewSet):
         text = request.QUERY_PARAMS.get('text', "")
         print("Searching for {}".format(text))
         project_id = request.QUERY_PARAMS.get('project', None)
-        #project_id =2
+
+        result = {}
         if project_id:
-            projects_list = [self._get_project(project_id)]
-        else:
-            projects_list = self._get_all_projects()
+            project = self._get_project(project_id)
 
-        print(projects_list)
-
-        full_result = {}
-
-        for project in projects_list:
-            result = {}
             with futures.ThreadPoolExecutor(max_workers=4) as executor:
                 futures_list = []
                 if user_has_perm(request.user, "view_epics", project):
@@ -78,11 +71,72 @@ class SearchViewSet(viewsets.ViewSet):
                         print('%s generated an exception: %s' % (future.result_key, exc))
                     finally:
                         result[future.result_key] = data
+
             result["count"] = sum(map(lambda x: len(x), result.values()))
-            print(project)
-            full_result[project.id] = result
-        print(full_result)
-        return response.Ok(full_result)
+            return response.Ok(result)
+        else:
+            all_projects = self._get_all_projects()
+            view_epics_projects_list = []
+            view_us_projects_list = []
+            view_tasks_project_list = []
+            view_issues_project_list = []
+            view_wiki_pages_project_list = []
+            for project in all_projects:
+                if user_has_perm(request.user, "view_epics", project):
+                    view_epics_projects_list.append(project)
+                if user_has_perm(request.user, "view_us", project):
+                    view_us_projects_list.append(project)
+                if user_has_perm(request.user, "view_tasks", project):
+                    view_tasks_project_list.append(project)
+                if user_has_perm(request.user, "view_issues", project):
+                    view_issues_project_list.append(project)
+                if user_has_perm(request.user, "view_wiki_pages", project):
+                    view_wiki_pages_project_list.append(project)
+            with futures.ThreadPoolExecutor(max_workers=4) as executor:
+                futures_list = []
+                epics_future = executor.submit(
+                    self._global_search_epics, view_epics_projects_list, text
+                )
+                epics_future.result_key = "epics"
+                futures_list.append(epics_future)
+
+                uss_future = executor.submit(
+                    self._global_search_user_stories, view_us_projects_list,
+                    text
+                )
+                uss_future.result_key = "userstories"
+                futures_list.append(uss_future)
+
+                tasks_future = executor.submit(
+                    self._global_search_tasks, view_tasks_project_list, text
+                )
+                tasks_future.result_key = "tasks"
+                futures_list.append(tasks_future)
+
+                issues_future = executor.submit(
+                    self._global_search_issues, view_issues_project_list, text
+                )
+                issues_future.result_key = "issues"
+                futures_list.append(issues_future)
+
+                wiki_pages_future = executor.submit(
+                    self._global_search_wiki_pages,
+                    view_wiki_pages_project_list, text
+                )
+                wiki_pages_future.result_key = "wikipages"
+                futures_list.append(wiki_pages_future)
+
+                for future in futures.as_completed(futures_list):
+                    data = []
+                    try:
+                        data = future.result()
+                    except Exception as exc:
+                        print('%s generated an exception: %s' % (future.result_key, exc))
+                    finally:
+                        result[future.result_key] = data
+            result["count"] = sum(map(lambda x: len(x), result.values()))
+            return response.Ok(result)
+
 
     def _get_all_projects(self):
         project_model = apps.get_model("projects", "Project")
@@ -117,7 +171,27 @@ class SearchViewSet(viewsets.ViewSet):
         serializer = serializers.WikiPageSearchResultsSerializer(queryset, many=True)
         return serializer.data
 
-    def _global_search_user_stories(self, text):
-        queryset = services.global_search_user_stories(text)
+    def _global_search_epics(self, project_list, text):
+        queryset = services.global_search_epics(project_list, text)
+        serializer = serializers.GlobalEpicSearchResultsSerializer(queryset, many=True)
+        return serializer.data
+
+    def _global_search_user_stories(self, project_list, text):
+        queryset = services.global_search_user_stories(project_list, text)
         serializer = serializers.GlobalUserStorySearchResultsSerializer(queryset, many=True)
+        return serializer.data
+
+    def _global_search_tasks(self, project_list, text):
+        queryset = services.global_search_tasks(project_list, text)
+        serializer = serializers.GlobalTaskSearchResultsSerializer(queryset, many=True)
+        return serializer.data
+
+    def _global_search_issues(self, project_list, text):
+        queryset = services.global_search_issues(project_list, text)
+        serializer = serializers.GlobalIssueSearchResultsSerializer(queryset, many=True)
+        return serializer.data
+
+    def _global_search_wiki_pages(self, project_list, text):
+        queryset = services.global_search_wiki_pages(project_list, text)
+        serializer = serializers.GlobalWikiSearchResultsSerializer(queryset, many=True)
         return serializer.data
