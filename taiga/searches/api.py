@@ -116,3 +116,8 @@ class SearchViewSet(viewsets.ViewSet):
         queryset = services.search_wiki_pages(project, text)
         serializer = serializers.WikiPageSearchResultsSerializer(queryset, many=True)
         return serializer.data
+
+    def _global_search_user_stories(self, text):
+        queryset = services.global_search_user_stories(text)
+        serializer = serializers.GlobalUserStorySearchResultsSerializer(queryset, many=True)
+        return serializer.data

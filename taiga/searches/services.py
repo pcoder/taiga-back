@@ -64,6 +64,13 @@ def search_wiki_pages(project, text):
     return _search_by_query(queryset, tsquery, tsvector, text)
 
 
+def global_search_user_stories(text):
+    model = apps.get_model("userstories", "UserStory")
+    queryset = model.objects.all().select_related('project')
+    table = "userstories_userstory"
+    return _search_items(queryset, table, text)
+
+
 def _search_items(queryset, table, text):
     tsquery = "to_tsquery('simple', %s)"
     tsvector = """

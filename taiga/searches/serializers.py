@@ -49,6 +49,9 @@ class UserStorySearchResultsSerializer(serializers.LightSerializer):
 
         return obj.total_points_attr
 
+class GlobalUserStorySearchResultsSerializer(UserStorySearchResultsSerializer):
+    project_slug = Field(attr="slug")
+
 
 class TaskSearchResultsSerializer(serializers.LightSerializer):
     id = Field()
