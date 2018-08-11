@@ -72,7 +72,6 @@ class SearchViewSet(viewsets.ViewSet):
                         result[future.result_key] = data
 
             result["count"] = sum(map(lambda x: len(x), result.values()))
-            return response.Ok(result)
         else:
             all_projects = self._get_all_projects()
             view_epics_projects_list = []
@@ -134,7 +133,7 @@ class SearchViewSet(viewsets.ViewSet):
                     finally:
                         result[future.result_key] = data
             result["count"] = sum(map(lambda x: len(x), result.values()))
-            return response.Ok(result)
+        return response.Ok(result)
 
 
     def _get_all_projects(self):
