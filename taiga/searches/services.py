@@ -65,20 +65,16 @@ def search_wiki_pages(project, text):
 
 
 def global_search_epics(project_list, text):
-    print("in global_search_epics")
     model = apps.get_model("epics", "Epic")
-    print("in global_search_epics 1")
-    queryset = model.objects.all().select_related('project').filter(
+    queryset = model.objects.all().select_related('project', 'status').filter(
         project_id__in=project_list
     )
-    print("in global_search_epics 2")
     table = "epics_epic"
-    print("in global_search_epics 3")
     return _search_items(queryset, table, text)
 
 def global_search_user_stories(project_list, text):
     model = apps.get_model("userstories", "UserStory")
-    queryset = model.objects.all().select_related('project').filter(
+    queryset = model.objects.all().select_related('project', 'status').filter(
         project_id__in=project_list
     )
     table = "userstories_userstory"
@@ -86,7 +82,7 @@ def global_search_user_stories(project_list, text):
 
 def global_search_tasks(project_list, text):
     model = apps.get_model("tasks", "Task")
-    queryset = model.objects.all().select_related('project').filter(
+    queryset = model.objects.all().select_related('project', 'status').filter(
         project_id__in=project_list
     )
     table = "tasks_task"
@@ -94,7 +90,7 @@ def global_search_tasks(project_list, text):
 
 def global_search_issues(project_list, text):
     model = apps.get_model("issues", "Issue")
-    queryset = model.objects.all().select_related('project').filter(
+    queryset = model.objects.all().select_related('project', 'status').filter(
         project_id__in=project_list
     )
     table = "issues_issue"

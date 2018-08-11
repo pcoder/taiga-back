@@ -73,18 +73,22 @@ class WikiPageSearchResultsSerializer(serializers.LightSerializer):
 
 class GlobalEpicSearchResultsSerializer(EpicSearchResultsSerializer):
     project_slug = Field(attr="project.slug")
+    epic_statusname = Field(attr="status.name")
 
 
 class GlobalUserStorySearchResultsSerializer(UserStorySearchResultsSerializer):
     project_slug = Field(attr="project.slug")
+    us_statusname = Field(attr="status.name")
 
 
 class GlobalTaskSearchResultsSerializer(TaskSearchResultsSerializer):
     project_slug = Field(attr="project.slug")
+    task_statusname = Field(attr="status.name")
 
 
 class GlobalIssueSearchResultsSerializer(IssueSearchResultsSerializer):
     project_slug = Field(attr="project.slug")
+    issue_statusname = Field(attr="status.name")
 
 
 class GlobalWikiSearchResultsSerializer(WikiPageSearchResultsSerializer):
