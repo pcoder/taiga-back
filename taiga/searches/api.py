@@ -33,7 +33,6 @@ from concurrent import futures
 class SearchViewSet(viewsets.ViewSet):
     def list(self, request, **kwargs):
         text = request.QUERY_PARAMS.get('text', "")
-        print("Searching for {}".format(text))
         project_id = request.QUERY_PARAMS.get('project', None)
 
         result = {}
