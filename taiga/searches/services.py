@@ -66,7 +66,9 @@ def search_wiki_pages(project, text):
 
 def global_search_epics(project_list, text):
     model = apps.get_model("epics", "Epic")
-    queryset = model.objects.all().select_related('project', 'status').filter(
+    queryset = model.objects.all().select_related(
+        'project', 'status', 'assigned_to'
+    ).filter(
         project_id__in=project_list
     )
     table = "epics_epic"
@@ -74,7 +76,9 @@ def global_search_epics(project_list, text):
 
 def global_search_user_stories(project_list, text):
     model = apps.get_model("userstories", "UserStory")
-    queryset = model.objects.all().select_related('project', 'status').filter(
+    queryset = model.objects.all().select_related(
+        'project', 'status', 'assigned_to'
+    ).filter(
         project_id__in=project_list
     )
     table = "userstories_userstory"
@@ -82,7 +86,9 @@ def global_search_user_stories(project_list, text):
 
 def global_search_tasks(project_list, text):
     model = apps.get_model("tasks", "Task")
-    queryset = model.objects.all().select_related('project', 'status').filter(
+    queryset = model.objects.all().select_related(
+        'project', 'status', 'assigned_to'
+    ).filter(
         project_id__in=project_list
     )
     table = "tasks_task"
@@ -90,7 +96,9 @@ def global_search_tasks(project_list, text):
 
 def global_search_issues(project_list, text):
     model = apps.get_model("issues", "Issue")
-    queryset = model.objects.all().select_related('project', 'status').filter(
+    queryset = model.objects.all().select_related(
+        'project', 'status', 'assigned_to'
+    ).filter(
         project_id__in=project_list
     )
     table = "issues_issue"

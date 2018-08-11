@@ -18,6 +18,7 @@
 
 from taiga.base.api import serializers
 from taiga.base.fields import Field, MethodField
+from taiga.users.gravatar import get_gravatar_id
 
 
 class EpicSearchResultsSerializer(serializers.LightSerializer):
@@ -84,12 +85,39 @@ class GlobalUserStorySearchResultsSerializer(UserStorySearchResultsSerializer):
 class GlobalTaskSearchResultsSerializer(TaskSearchResultsSerializer):
     project_slug = Field(attr="project.slug")
     task_statusname = Field(attr="status.name")
+    assigned_to_fullname = MethodField()
+    assigned_to_gravatar_id = MethodField()
+
+    def get_assigned_to_fullname(self, obj):
+        full_name = None
+        if hasattr(obj.assigned_to, 'full_name'):
+            full_name = obj.assigned_to.full_name
+        return full_name
+
+    def get_assigned_to_gravatar_id(self, obj):
+        if hasattr(obj.assigned_to, 'email'):
+            return get_gravatar_id(obj.assigned_to.email)
+        else:
+            return None
 
 
 class GlobalIssueSearchResultsSerializer(IssueSearchResultsSerializer):
     project_slug = Field(attr="project.slug")
     issue_statusname = Field(attr="status.name")
+    assigned_to_fullname = MethodField()
+    assigned_to_gravatar_id = MethodField()
 
+    def get_assigned_to_fullname(self, obj):
+        full_name = None
+        if hasattr(obj.assigned_to, 'full_name'):
+            full_name = obj.assigned_to.full_name
+        return full_name
+
+    def get_assigned_to_gravatar_id(self, obj):
+        if hasattr(obj.assigned_to, 'email'):
+            return get_gravatar_id(obj.assigned_to.email)
+        else:
+            return None
 
 class GlobalWikiSearchResultsSerializer(WikiPageSearchResultsSerializer):
     project_slug = Field(attr="project.slug")
