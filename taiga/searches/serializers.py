@@ -75,11 +75,13 @@ class WikiPageSearchResultsSerializer(serializers.LightSerializer):
 class GlobalEpicSearchResultsSerializer(EpicSearchResultsSerializer):
     project_slug = Field(attr="project.slug")
     epic_statusname = Field(attr="status.name")
+    project_name = Field(attr="project.name")
 
 
 class GlobalUserStorySearchResultsSerializer(UserStorySearchResultsSerializer):
     project_slug = Field(attr="project.slug")
     us_statusname = Field(attr="status.name")
+    project_name = Field(attr="project.name")
 
 
 class GlobalTaskSearchResultsSerializer(TaskSearchResultsSerializer):
@@ -87,6 +89,7 @@ class GlobalTaskSearchResultsSerializer(TaskSearchResultsSerializer):
     task_statusname = Field(attr="status.name")
     assigned_to_fullname = MethodField()
     assigned_to_gravatar_id = MethodField()
+    project_name = Field(attr="project.name")
 
     def get_assigned_to_fullname(self, obj):
         full_name = None
@@ -106,6 +109,7 @@ class GlobalIssueSearchResultsSerializer(IssueSearchResultsSerializer):
     issue_statusname = Field(attr="status.name")
     assigned_to_fullname = MethodField()
     assigned_to_gravatar_id = MethodField()
+    project_name = Field(attr="project.name")
 
     def get_assigned_to_fullname(self, obj):
         full_name = None
@@ -121,4 +125,5 @@ class GlobalIssueSearchResultsSerializer(IssueSearchResultsSerializer):
 
 class GlobalWikiSearchResultsSerializer(WikiPageSearchResultsSerializer):
     project_slug = Field(attr="project.slug")
+    project_name = Field(attr="project.name")
 
