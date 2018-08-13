@@ -280,6 +280,45 @@ def _build_liked_sql_for_projects(for_user):
     return sql
 
 
+
+def _build_assigned_sql_for_type(for_user, type, table_name, action_table,
+                         ref_column="ref",
+                        project_column="project_id", assigned_to_column="assigned_to_id",
+                        slug_column="slug", subject_column="subject"):
+    sql = """
+    SELECT {table_name}.id AS id,ref AS ref, '{type}' AS type,
+            tags, {table_name}.id as object_id, {table_name}.project_id AS project,
+            null AS slug, null AS name, subject AS subject,
+            {table_name}.modified_date as created_date,
+            coalesce(watchers, 0) AS total_watchers,
+            null::integer AS total_fans, coalesce(voters, 0) AS total_voters,
+            {assigned_to_column}  AS assigned_to,
+            projects_{type}status.name as status,
+            projects_{type}status.color as status_color
+    from {table_name}
+        INNER JOIN django_content_type ON (django_content_type.model = '{type}')
+        LEFT JOIN (SELECT object_id, content_type_id, count(*) voters
+                       FROM votes_vote GROUP BY object_id, content_type_id)
+                  type_voters
+                ON ({table_name}.id = type_voters.object_id AND
+                    django_content_type.id = type_voters.content_type_id)
+        LEFT JOIN (SELECT object_id, content_type_id, count(*) watchers FROM
+                    notifications_watched GROUP BY object_id, content_type_id)
+                  type_watchers
+                ON ({table_name}.id = type_watchers.object_id AND
+                    django_content_type.id = type_watchers.content_type_id)
+        INNER JOIN projects_{type}status
+                ON (projects_{type}status.id = {table_name}.status_id)
+    WHERE assigned_to_id = {for_user_id}
+    """
+    sql = sql.format(for_user_id=for_user.id, type=type, table_name=table_name,
+                     action_table=action_table, ref_column=ref_column,
+                     project_column=project_column, assigned_to_column=assigned_to_column,
+                     slug_column=slug_column, subject_column=subject_column)
+
+    return sql
+
+
 def _build_sql_for_type(for_user, type, table_name, action_table, ref_column="ref",
                         project_column="project_id", assigned_to_column="assigned_to_id",
                         slug_column="slug", subject_column="subject"):
@@ -574,6 +613,109 @@ def get_voted_list(for_user, from_user, type=None, q=None):
         tasks_sql=_build_sql_for_type(for_user, "task", "tasks_task", "votes_vote", slug_column="null"),
         issues_sql=_build_sql_for_type(for_user, "issue", "issues_issue", "votes_vote", slug_column="null"),
         epics_sql=_build_sql_for_type(for_user, "epic", "epics_epic", "votes_vote", slug_column="null"))
+
+    cursor = connection.cursor()
+    params = {
+        "type": type,
+        "q": to_tsquery(q) if q is not None else ""
+    }
+    cursor.execute(sql, params)
+
+    desc = cursor.description
+    return [
+        dict(zip([col[0] for col in desc], row))
+        for row in cursor.fetchall()
+    ]
+
+def get_assigned_list(for_user, from_user, type=None, q=None):
+    filters_sql = ""
+
+    if type:
+        filters_sql += " AND type = %(type)s "
+
+    if q:
+        filters_sql += """ AND (
+            to_tsvector('simple', coalesce(subject,'') || ' ' ||coalesce(entities.name,'') || ' ' ||coalesce(to_char(ref, '999'),'')) @@ to_tsquery('simple', %(q)s)
+        )
+        """
+
+    sql = """
+    -- BEGIN Basic info: we need to mix info from different tables and denormalize it
+    SELECT entities.*,
+           projects_project.name as project_name, projects_project.description as description, projects_project.slug as project_slug, projects_project.is_private as project_is_private,
+           projects_project.blocked_code as project_blocked_code, projects_project.tags_colors, projects_project.logo,
+           users_user.id as assigned_to_id,
+           row_to_json(users_user) as assigned_to_extra_info
+        FROM (
+            {epics_sql}
+            UNION
+            {userstories_sql}
+            UNION
+            {tasks_sql}
+            UNION
+            {issues_sql}
+        ) as entities
+    -- END Basic info
+
+    -- BEGIN Project info
+    LEFT JOIN projects_project
+        ON (entities.project = projects_project.id)
+    -- END Project info
+
+    -- BEGIN Assigned to user info
+    LEFT JOIN users_user
+        ON (assigned_to = users_user.id)
+    -- END Assigned to user info
+
+    -- BEGIN Permissions checking
+    LEFT JOIN projects_membership
+        -- Here we check the memberbships from the user requesting the info
+        ON (projects_membership.user_id = {from_user_id} AND projects_membership.project_id = entities.project)
+
+    LEFT JOIN users_role
+        ON (entities.project = users_role.project_id AND users_role.id =  projects_membership.role_id)
+
+    WHERE
+        -- public project
+        (
+            projects_project.is_private = false
+            OR(
+                -- private project where the view_ permission is included in the user role for that project or in the anon permissions
+                projects_project.is_private = true
+                AND(
+                    (entities.type = 'issue' AND 'view_issues' = ANY (array_cat(users_role.permissions, projects_project.anon_permissions)))
+                    OR (entities.type = 'task' AND 'view_tasks' = ANY (array_cat(users_role.permissions, projects_project.anon_permissions)))
+                    OR (entities.type = 'userstory' AND 'view_us' = ANY (array_cat(users_role.permissions, projects_project.anon_permissions)))
+                    OR (entities.type = 'epic' AND 'view_epic' = ANY (array_cat(users_role.permissions, projects_project.anon_permissions)))
+                )
+        ))
+    -- END Permissions checking
+        {filters_sql}
+
+    ORDER BY entities.created_date DESC;
+    """
+
+    from_user_id = -1
+    if not from_user.is_anonymous():
+        from_user_id = from_user.id
+
+    sql = sql.format(
+        for_user_id=for_user.id,
+        from_user_id=from_user_id,
+        filters_sql=filters_sql,
+        userstories_sql=_build_assigned_sql_for_type(
+            for_user, "userstory", "userstories_userstory", "votes_vote",
+            slug_column="null"),
+        tasks_sql=_build_assigned_sql_for_type(
+            for_user, "task", "tasks_task", "votes_vote", slug_column="null"
+        ),
+        issues_sql=_build_assigned_sql_for_type(
+            for_user, "issue", "issues_issue", "votes_vote", slug_column="null"
+        ),
+        epics_sql=_build_assigned_sql_for_type(
+            for_user, "epic", "epics_epic", "votes_vote", slug_column="null"
+        )
+    )
 
     cursor = connection.cursor()
     params = {
